@@ -1,0 +1,1508 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>服事表編排工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Microsoft JhengHei', 'PingFang TC', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+        }
+        .calendar-day {
+            min-height: 100px;
+            transition: all 0.3s ease;
+        }
+        .calendar-day:hover:not(.empty-day) {
+            filter: brightness(0.95);
+        }
+        .today {
+            border: 2px solid #3b82f6 !important;
+        }
+        .tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            margin: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+        }
+        .nav-tab {
+            transition: all 0.3s ease;
+        }
+        .nav-tab.active {
+            border-bottom: 3px solid #3b82f6;
+            color: #3b82f6;
+            font-weight: bold;
+        }
+        .attendance-cell {
+            transition: all 0.2s ease;
+        }
+        .attendance-cell:hover {
+            background-color: #f3f4f6;
+        }
+        .identity-tag {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin: 2px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .identity-tag.active {
+            opacity: 1;
+        }
+        .identity-tag.inactive {
+            opacity: 0.5;
+        }
+        .requirement-tag {
+            background-color: #3b82f6;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin: 2px;
+        }
+        .section-title {
+            position: relative;
+            padding-left: 15px;
+        }
+        .section-title:before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 5px;
+            height: 20px;
+            background-color: #3b82f6;
+            border-radius: 2px;
+        }
+        .employee-name {
+            cursor: pointer;
+        }
+        .employee-name:hover {
+            background-color: #f3f4f6;
+        }
+        .batch-setting-cell {
+            background-color: #f8fafc;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        .match-day {
+            cursor: pointer;
+        }
+        .match-day:hover {
+            background-color: #f3f4f6;
+        }
+        .official-member {
+            font-weight: bold;
+            color: #3b82f6;
+        }
+        .resizable-col {
+            position: relative;
+            overflow: auto;
+            min-width: 100px;
+        }
+        .day-header {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .day-header:hover {
+            background-color: #e5e7eb;
+        }
+        .color-swatch {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: inline-block;
+            margin: 2px;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+        .color-swatch.selected {
+            border: 2px solid #3b82f6;
+            transform: scale(1.1);
+        }
+        .day-title {
+            font-size: 0.75rem;
+            font-weight: 500;
+            margin-top: 2px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-6xl mx-auto bg-white rounded-xl shadow-lg overflow-hidden">
+        <div class="bg-gradient-to-r from-blue-500 to-indigo-600 p-6 text-white">
+            <h1 class="text-2xl md:text-3xl font-bold text-center">服事表編排工具</h1>
+        </div>
+        
+        <!-- 導航標籤 -->
+        <div class="flex border-b border-gray-200">
+            <button id="tab-attendance" class="nav-tab active flex-1 py-4 px-6 text-center focus:outline-none">
+                同工出席與身份標籤
+            </button>
+            <button id="tab-requirements" class="nav-tab flex-1 py-4 px-6 text-center focus:outline-none">
+                需求月曆
+            </button>
+            <button id="tab-matching" class="nav-tab flex-1 py-4 px-6 text-center focus:outline-none">
+                匹配結果月曆
+            </button>
+        </div>
+
+        <!-- 匯入匯出按鈕 -->
+        <div class="flex justify-end p-4">
+            <button id="export-data" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors">
+                匯出
+            </button>
+            <button id="import-data" class="ml-2 px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 transition-colors">
+                匯入
+            </button>
+        </div>
+        
+        <!-- 區段一: 同工出席與身份標籤 -->
+        <div id="section-attendance" class="p-6">
+            <h2 class="text-xl font-bold mb-4 section-title">同工出席與身份標籤</h2>
+            <div class="mb-6 flex flex-col md:flex-row gap-4 items-end">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">新增同工</label>
+                    <div class="flex">
+                        <input type="text" id="new-employee" class="px-4 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="輸入同工姓名">
+                        <button id="add-employee" class="px-4 py-2 bg-blue-600 text-white rounded-r-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
+                            新增
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table id="attendance-table" class="min-w-full border border-gray-200 rounded-lg">
+                    <thead>
+                        <tr class="bg-gray-100">
+                            <th class="py-3 px-4 border-b border-r border-gray-200 text-left">同工</th>
+                            <th class="py-3 px-4 border-b border-r border-gray-200 text-left">身份標籤</th>
+                            <th class="py-3 px-4 border-b border-r border-gray-200 text-center">操作</th>
+                            <!-- 需求日期將在這裡動態生成 -->
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- 同工出席表將在這裡動態生成 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- 區段二: 需求月曆 -->
+        <div id="section-requirements" class="p-6 hidden">
+            <h2 class="text-xl font-bold mb-4 section-title">需求月曆</h2>
+            <div class="flex flex-col md:flex-row gap-4 mb-6">
+                <div class="flex-1">
+                    <label for="req-year" class="block text-sm font-medium text-gray-700 mb-1">年份</label>
+                    <input type="number" id="req-year" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="請輸入年份">
+                </div>
+                <div class="flex-1">
+                    <label for="req-month" class="block text-sm font-medium text-gray-700 mb-1">月份</label>
+                    <select id="req-month" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="1">1月</option>
+                        <option value="2">2月</option>
+                        <option value="3">3月</option>
+                        <option value="4">4月</option>
+                        <option value="5">5月</option>
+                        <option value="6">6月</option>
+                        <option value="7">7月</option>
+                        <option value="8">8月</option>
+                        <option value="9">9月</option>
+                        <option value="10">10月</option>
+                        <option value="11">11月</option>
+                        <option value="12">12月</option>
+                    </select>
+                </div>
+                <div class="flex-1">
+                    <label for="req-title" class="block text-sm font-medium text-gray-700 mb-1">自訂標題</label>
+                    <input type="text" id="req-title" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="">
+                </div>
+                <div class="flex items-end">
+                    <button id="generate-req-calendar" class="w-full md:w-auto px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
+                        產生月曆
+                    </button>
+                </div>
+            </div>
+            
+            <div id="req-calendar-container" class="mt-6">
+                <div id="req-calendar-header" class="text-xl font-bold text-center mb-4 text-gray-800"></div>
+                <div id="req-calendar" class="border border-gray-200 rounded-lg overflow-hidden">
+                    <!-- 需求日曆將在這裡生成 -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- 區段三: 匹配結果月曆 -->
+        <div id="section-matching" class="p-6 hidden">
+            <h2 class="text-xl font-bold mb-4 section-title">匹配結果月曆</h2>
+            <div class="flex flex-wrap gap-4 mb-6 items-center">
+                <div class="flex items-center">
+                    <input type="checkbox" id="hide-empty-days" class="mr-2">
+                    <label for="hide-empty-days" class="text-sm font-medium text-gray-700">將無需求日期隱藏</label>
+                </div>
+                <button id="reset-column-width" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors">
+                    重置寬度
+                </button>
+            </div>
+            
+            <div id="match-calendar-container" class="mt-6">
+                <div id="match-calendar-header" class="text-xl font-bold text-center mb-4 text-gray-800"></div>
+                <div id="match-calendar" class="border border-gray-200 rounded-lg overflow-hidden">
+                    <!-- 匹配結果日曆將在這裡生成 -->
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 新增需求的彈出窗口 -->
+    <div id="add-requirement-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 class="text-lg font-bold mb-4">新增需求</h3>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">日期</label>
+                <div id="modal-date" class="text-lg font-medium"></div>
+            </div>
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">中控需求人數</label>
+                    <input type="number" id="req-control" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" min="0" value="0">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">副控需求人數</label>
+                    <input type="number" id="req-subcontrol" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" min="0" value="0">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">三民需求人數</label>
+                    <input type="number" id="req-sanmin" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" min="0" value="0">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Arena需求人數</label>
+                    <input type="number" id="req-arena" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" min="0" value="0">
+                </div>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button id="cancel-requirement" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors">
+                    取消
+                </button>
+                <button id="save-requirement" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
+                    儲存
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 批量設定需求的彈出窗口 -->
+    <div id="batch-requirement-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 class="text-lg font-bold mb-4" id="batch-modal-title">批量設定需求</h3>
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">中控需求人數</label>
+                    <input type="number" id="batch-req-control" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" min="0" value="0">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">副控需求人數</label>
+                    <input type="number" id="batch-req-subcontrol" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" min="0" value="0">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">三民需求人數</label>
+                    <input type="number" id="batch-req-sanmin" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" min="0" value="0">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Arena需求人數</label>
+                    <input type="number" id="batch-req-arena" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" min="0" value="0">
+                </div>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button id="cancel-batch" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors">
+                    取消
+                </button>
+                <button id="save-batch" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
+                    儲存
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 編輯同工姓名的彈出窗口 -->
+    <div id="edit-employee-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 class="text-lg font-bold mb-4">編輯同工</h3>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">同工姓名</label>
+                <input type="text" id="edit-employee-name" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <input type="hidden" id="edit-employee-original-name">
+            </div>
+            <div class="flex justify-end gap-2">
+                <button id="delete-employee" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors">
+                    刪除同工
+                </button>
+                <button id="cancel-edit-employee" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors">
+                    取消
+                </button>
+                <button id="save-edit-employee" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
+                    儲存
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 匹配詳細資訊的彈出窗口 -->
+    <div id="match-detail-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg p-6 w-full max-w-md max-h-[80vh] overflow-y-auto">
+            <h3 class="text-lg font-bold mb-4" id="match-detail-date">日期詳細資訊</h3>
+            
+            <!-- 標籤頁切換 -->
+            <div class="flex border-b border-gray-200 mb-4">
+                <button id="tab-match-employees" class="flex-1 py-2 px-4 text-center focus:outline-none border-b-2 border-blue-500 font-medium text-blue-600">同工指派</button>
+                <button id="tab-match-appearance" class="flex-1 py-2 px-4 text-center focus:outline-none">外觀設定</button>
+            </div>
+            
+            <!-- 同工指派內容 -->
+            <div id="match-detail-employees" class="mb-4">
+                <!-- 匹配詳細資訊將在這裡動態生成 -->
+            </div>
+            
+            <!-- 外觀設定內容 -->
+            <div id="match-detail-appearance" class="mb-4 hidden">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">標題</label>
+                    <textarea id="day-custom-title" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="輸入自訂標題" rows="2"></textarea>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">背景顏色</label>
+                    <div id="color-swatches" class="flex flex-wrap gap-1">
+                        <div class="color-swatch" style="background-color: #ffffff" data-color="#ffffff"></div>
+                        <div class="color-swatch" style="background-color: #f3f4f6" data-color="#f3f4f6"></div>
+                        <div class="color-swatch" style="background-color: #e5e7eb" data-color="#e5e7eb"></div>
+                        <div class="color-swatch" style="background-color: #d1d5db" data-color="#d1d5db"></div>
+                        <div class="color-swatch" style="background-color: #f9fafb" data-color="#f9fafb"></div>
+                        <div class="color-swatch" style="background-color: #f0f9ff" data-color="#f0f9ff"></div>
+                        <div class="color-swatch" style="background-color: #ecfdf5" data-color="#ecfdf5"></div>
+                        <div class="color-swatch" style="background-color: #fef3c7" data-color="#fef3c7"></div>
+                        <div class="color-swatch" style="background-color: #fee2e2" data-color="#fee2e2"></div>
+                        <div class="color-swatch" style="background-color: #ede9fe" data-color="#ede9fe"></div>
+                        <div class="color-swatch" style="background-color: #dbeafe" data-color="#dbeafe"></div>
+                        <div class="color-swatch" style="background-color: #dcfce7" data-color="#dcfce7"></div>
+                        <div class="color-swatch" style="background-color: #fef9c3" data-color="#fef9c3"></div>
+                        <div class="color-swatch" style="background-color: #fee2e2" data-color="#fee2e2"></div>
+                        <div class="color-swatch" style="background-color: #fae8ff" data-color="#fae8ff"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex justify-end gap-2">
+                <button id="close-match-detail" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors">
+                    取消
+                </button>
+                <button id="save-match-detail" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
+                    儲存
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 設定星期幾的彈出窗口 -->
+    <div id="day-of-week-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 class="text-lg font-bold mb-4" id="day-of-week-title">設定星期幾</h3>
+            
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">寬度設定 (像素)</label>
+                <input type="number" id="day-of-week-width" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" min="100" max="300" value="150">
+            </div>
+            
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">背景顏色</label>
+                <div id="day-of-week-colors" class="flex flex-wrap gap-1">
+                    <div class="color-swatch" style="background-color: #ffffff" data-color="#ffffff"></div>
+                    <div class="color-swatch" style="background-color: #f3f4f6" data-color="#f3f4f6"></div>
+                    <div class="color-swatch" style="background-color: #e5e7eb" data-color="#e5e7eb"></div>
+                    <div class="color-swatch" style="background-color: #d1d5db" data-color="#d1d5db"></div>
+                    <div class="color-swatch" style="background-color: #f9fafb" data-color="#f9fafb"></div>
+                    <div class="color-swatch" style="background-color: #f0f9ff" data-color="#f0f9ff"></div>
+                    <div class="color-swatch" style="background-color: #ecfdf5" data-color="#ecfdf5"></div>
+                    <div class="color-swatch" style="background-color: #fef3c7" data-color="#fef3c7"></div>
+                    <div class="color-swatch" style="background-color: #fee2e2" data-color="#fee2e2"></div>
+                    <div class="color-swatch" style="background-color: #ede9fe" data-color="#ede9fe"></div>
+                    <div class="color-swatch" style="background-color: #dbeafe" data-color="#dbeafe"></div>
+                    <div class="color-swatch" style="background-color: #dcfce7" data-color="#dcfce7"></div>
+                    <div class="color-swatch" style="background-color: #fef9c3" data-color="#fef9c3"></div>
+                    <div class="color-swatch" style="background-color: #fee2e2" data-color="#fee2e2"></div>
+                    <div class="color-swatch" style="background-color: #fae8ff" data-color="#fae8ff"></div>
+                </div>
+            </div>
+            
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">標題</label>
+                <textarea id="day-of-week-title-text" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="輸入自訂標題" rows="2"></textarea>
+            </div>
+            
+            <div class="flex justify-end gap-2">
+                <button id="cancel-day-of-week" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors">
+                    取消
+                </button>
+                <button id="save-day-of-week" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
+                    儲存
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 初始化數據
+        const identityTypes = ['中控', '副控', '三民', 'Arena'];
+        const identityColors = {
+            '中控': '#3b82f6', // 藍色
+            '副控': '#10b981', // 綠色
+            '三民': '#f59e0b', // 黃色
+            'Arena': '#ef4444'  // 紅色
+        };
+        
+        let employees = [
+            { name: '張三', identities: ['中控', '副控'] },
+            { name: '李四', identities: ['三民', 'Arena'] },
+            { name: '王五', identities: ['中控', 'Arena'] }
+        ];
+        
+        let dailyRequirements = {};
+        let attendance = {};
+        let officialAssignments = {}; // 儲存正式指派的同工
+        let dayAppearance = {}; // 儲存日期外觀設定
+        let dayOfWeekSettings = {}; // 儲存星期幾的設定
+        let defaultColumnWidth = '150px'; // 預設欄位寬度
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            // 設定預設值為當前年月
+            const today = new Date();
+            const currentYear = today.getFullYear();
+            const currentMonth = today.getMonth() + 1;
+            
+            document.getElementById('req-year').value = currentYear;
+            document.getElementById('req-month').value = currentMonth;
+            
+            // 設定自訂標題預設值
+            updateDefaultTitle();
+            
+            // 初始化頁面
+            generateReqCalendar();
+            
+            // 頁面切換
+            document.getElementById('tab-attendance').addEventListener('click', function() {
+                hideAllSections();
+                document.getElementById('section-attendance').classList.remove('hidden');
+                setActiveTab('tab-attendance');
+                renderAttendanceTable(); // 切換到出席表時重新渲染
+            });
+            
+            document.getElementById('tab-requirements').addEventListener('click', function() {
+                hideAllSections();
+                document.getElementById('section-requirements').classList.remove('hidden');
+                setActiveTab('tab-requirements');
+            });
+            
+            document.getElementById('tab-matching').addEventListener('click', function() {
+                hideAllSections();
+                document.getElementById('section-matching').classList.remove('hidden');
+                setActiveTab('tab-matching');
+                generateMatchCalendar(); // 使用區段二的年月生成匹配結果
+            });
+            
+            // 新增同工
+            document.getElementById('add-employee').addEventListener('click', function() {
+                const employeeName = document.getElementById('new-employee').value.trim();
+                if (employeeName && !employees.some(emp => emp.name === employeeName)) {
+                    employees.push({ name: employeeName, identities: [] }); // 允許沒有身份標籤
+                    attendance[employeeName] = {};
+                    renderAttendanceTable();
+                    document.getElementById('new-employee').value = '';
+                }
+            });
+            
+            // 產生需求月曆
+            document.getElementById('generate-req-calendar').addEventListener('click', function() {
+                generateReqCalendar();
+                generateMatchCalendar(); // 同時更新匹配結果月曆
+            });
+            
+            // 年月變更時更新自訂標題預設值
+            document.getElementById('req-year').addEventListener('change', updateDefaultTitle);
+            document.getElementById('req-month').addEventListener('change', updateDefaultTitle);
+            
+            // 隱藏無需求日期
+            document.getElementById('hide-empty-days').addEventListener('change', function() {
+                generateMatchCalendar();
+            });
+            
+            // 重置欄位寬度
+            document.getElementById('reset-column-width').addEventListener('click', function() {
+                // 重置所有星期幾的寬度設定
+                for (let i = 0; i < 7; i++) {
+                    if (dayOfWeekSettings[i]) {
+                        dayOfWeekSettings[i].width = defaultColumnWidth;
+                    }
+                }
+                generateMatchCalendar();
+            });
+            
+            // 匯出資料
+            document.getElementById('export-data').addEventListener('click', function() {
+                const data = {
+                    employees: employees,
+                    attendance: attendance,
+                    dailyRequirements: dailyRequirements,
+                    officialAssignments: officialAssignments,
+                    dayAppearance: dayAppearance,
+                    dayOfWeekSettings: dayOfWeekSettings
+                };
+                const jsonStr = JSON.stringify(data, null, 2);
+                const blob = new Blob([jsonStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'service_schedule_data.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            });
+
+            // 匯入資料
+            document.getElementById('import-data').addEventListener('click', function() {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.json';
+                input.onchange = function(event) {
+                    const file = event.target.files[0];
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            try {
+                                const data = JSON.parse(e.target.result);
+                                // 更新資料
+                                employees = data.employees || [];
+                                attendance = data.attendance || {};
+                                dailyRequirements = data.dailyRequirements || {};
+                                officialAssignments = data.officialAssignments || {};
+                                dayAppearance = data.dayAppearance || {};
+                                dayOfWeekSettings = data.dayOfWeekSettings || {};
+                                
+                                // 重新渲染界面
+                                renderAttendanceTable();
+                                generateReqCalendar();
+                                generateMatchCalendar();
+                            } catch (error) {
+                                alert('匯入失敗：無效的 JSON 檔案');
+                            }
+                        };
+                        reader.readAsText(file);
+                    }
+                };
+                input.click();
+            });
+            
+            // 取消新增需求
+            document.getElementById('cancel-requirement').addEventListener('click', function() {
+                document.getElementById('add-requirement-modal').classList.add('hidden');
+            });
+            
+            // 儲存新需求
+            document.getElementById('save-requirement').addEventListener('click', function() {
+                const reqDate = document.getElementById('modal-date').dataset.date;
+                const controlCount = parseInt(document.getElementById('req-control').value) || 0;
+                const subcontrolCount = parseInt(document.getElementById('req-subcontrol').value) || 0;
+                const sanminCount = parseInt(document.getElementById('req-sanmin').value) || 0;
+                const arenaCount = parseInt(document.getElementById('req-arena').value) || 0;
+                
+                if (reqDate) {
+                    dailyRequirements[reqDate] = {
+                        '中控': controlCount,
+                        '副控': subcontrolCount,
+                        '三民': sanminCount,
+                        'Arena': arenaCount
+                    };
+                    
+                    generateReqCalendar();
+                    generateMatchCalendar();
+                    renderAttendanceTable(); // 更新出席表以反映新的需求日期
+                    document.getElementById('add-requirement-modal').classList.add('hidden');
+                }
+            });
+            
+            // 取消批量設定
+            document.getElementById('cancel-batch').addEventListener('click', function() {
+                document.getElementById('batch-requirement-modal').classList.add('hidden');
+            });
+            
+            // 儲存批量設定
+            document.getElementById('save-batch').addEventListener('click', function() {
+                const batchType = document.getElementById('batch-modal-title').dataset.type;
+                const year = parseInt(document.getElementById('req-year').value);
+                const month = parseInt(document.getElementById('req-month').value);
+                const controlCount = parseInt(document.getElementById('batch-req-control').value) || 0;
+                const subcontrolCount = parseInt(document.getElementById('batch-req-subcontrol').value) || 0;
+                const sanminCount = parseInt(document.getElementById('batch-req-sanmin').value) || 0;
+                const arenaCount = parseInt(document.getElementById('batch-req-arena').value) || 0;
+                
+                const daysInMonth = new Date(year, month, 0).getDate();
+                
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const date = new Date(year, month - 1, day);
+                    const dayOfWeek = date.getDay(); // 0 是週日，6 是週六
+                    
+                    let shouldSet = false;
+                    
+                    if (batchType === 'sundays' && dayOfWeek === 0) {
+                        shouldSet = true;
+                    } else if (batchType === 'saturdays' && dayOfWeek === 6) {
+                        shouldSet = true;
+                    } else if (batchType === 'weekdays' && dayOfWeek > 0 && dayOfWeek < 6) {
+                        shouldSet = true;
+                    } else if (batchType === 'day-' + dayOfWeek) {
+                        shouldSet = true;
+                    }
+                    
+                    if (shouldSet) {
+                        const dateStr = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+                        dailyRequirements[dateStr] = {
+                            '中控': controlCount,
+                            '副控': subcontrolCount,
+                            '三民': sanminCount,
+                            'Arena': arenaCount
+                        };
+                    }
+                }
+                
+                generateReqCalendar();
+                generateMatchCalendar();
+                renderAttendanceTable(); // 更新出席表以反映新的需求日期
+                document.getElementById('batch-requirement-modal').classList.add('hidden');
+            });
+            
+            // 編輯同工相關事件
+            document.getElementById('cancel-edit-employee').addEventListener('click', function() {
+                document.getElementById('edit-employee-modal').classList.add('hidden');
+            });
+            
+            document.getElementById('save-edit-employee').addEventListener('click', function() {
+                const originalName = document.getElementById('edit-employee-original-name').value;
+                const newName = document.getElementById('edit-employee-name').value.trim();
+                
+                if (newName && (newName === originalName || !employees.some(emp => emp.name === newName))) {
+                    const empIndex = employees.findIndex(emp => emp.name === originalName);
+                    if (empIndex !== -1) {
+                        // 更新同工姓名
+                        employees[empIndex].name = newName;
+                        
+                        // 更新出席記錄
+                        if (attendance[originalName]) {
+                            attendance[newName] = {...attendance[originalName]};
+                            delete attendance[originalName];
+                        }
+                        
+                        // 更新正式指派記錄
+                        for (const dateStr in officialAssignments) {
+                            for (const identity in officialAssignments[dateStr]) {
+                                const assignedIndex = officialAssignments[dateStr][identity].indexOf(originalName);
+                                if (assignedIndex !== -1) {
+                                    officialAssignments[dateStr][identity][assignedIndex] = newName;
+                                }
+                            }
+                        }
+                        
+                        renderAttendanceTable();
+                        generateMatchCalendar(); // 更新匹配結果
+                    }
+                    document.getElementById('edit-employee-modal').classList.add('hidden');
+                } else if (!newName) {
+                    alert('同工姓名不能為空');
+                } else {
+                    alert('已存在同名同工');
+                }
+            });
+            
+            document.getElementById('delete-employee').addEventListener('click', function() {
+                const originalName = document.getElementById('edit-employee-original-name').value;
+                
+                if (confirm(`確定要刪除同工 "${originalName}" 嗎？`)) {
+                    const empIndex = employees.findIndex(emp => emp.name === originalName);
+                    if (empIndex !== -1) {
+                        employees.splice(empIndex, 1);
+                        
+                        // 刪除出席記錄
+                        if (attendance[originalName]) {
+                            delete attendance[originalName];
+                        }
+                        
+                        // 從正式指派中移除
+                        for (const dateStr in officialAssignments) {
+                            for (const identity in officialAssignments[dateStr]) {
+                                officialAssignments[dateStr][identity] = officialAssignments[dateStr][identity].filter(name => name !== originalName);
+                            }
+                        }
+                        
+                        renderAttendanceTable();
+                        generateMatchCalendar(); // 更新匹配結果
+                    }
+                    document.getElementById('edit-employee-modal').classList.add('hidden');
+                }
+            });
+            
+            // 匹配詳細資訊標籤頁切換
+            document.getElementById('tab-match-employees').addEventListener('click', function() {
+                document.getElementById('match-detail-employees').classList.remove('hidden');
+                document.getElementById('match-detail-appearance').classList.add('hidden');
+                this.classList.add('border-b-2', 'border-blue-500', 'font-medium', 'text-blue-600');
+                document.getElementById('tab-match-appearance').classList.remove('border-b-2', 'border-blue-500', 'font-medium', 'text-blue-600');
+            });
+            
+            document.getElementById('tab-match-appearance').addEventListener('click', function() {
+                document.getElementById('match-detail-employees').classList.add('hidden');
+                document.getElementById('match-detail-appearance').classList.remove('hidden');
+                this.classList.add('border-b-2', 'border-blue-500', 'font-medium', 'text-blue-600');
+                document.getElementById('tab-match-employees').classList.remove('border-b-2', 'border-blue-500', 'font-medium', 'text-blue-600');
+            });
+            
+            // 關閉匹配詳細資訊
+            document.getElementById('close-match-detail').addEventListener('click', function() {
+                document.getElementById('match-detail-modal').classList.add('hidden');
+            });
+            
+            // 儲存匹配詳細資訊
+            document.getElementById('save-match-detail').addEventListener('click', function() {
+                const dateStr = document.getElementById('match-detail-date').dataset.date;
+                if (!dateStr) return;
+                
+                // 儲存外觀設定
+                if (!dayAppearance[dateStr]) {
+                    dayAppearance[dateStr] = {};
+                }
+                
+                // 儲存標題
+                const title = document.getElementById('day-custom-title').value.trim();
+                dayAppearance[dateStr].title = title;
+                
+                // 儲存顏色
+                const selectedColor = document.querySelector('#color-swatches .selected');
+                if (selectedColor) {
+                    dayAppearance[dateStr].backgroundColor = selectedColor.dataset.color;
+                }
+                
+                generateMatchCalendar();
+                document.getElementById('match-detail-modal').classList.add('hidden');
+            });
+            
+            // 取消星期幾設定
+            document.getElementById('cancel-day-of-week').addEventListener('click', function() {
+                document.getElementById('day-of-week-modal').classList.add('hidden');
+            });
+            
+            // 儲存星期幾設定
+            document.getElementById('save-day-of-week').addEventListener('click', function() {
+                const dayOfWeek = parseInt(document.getElementById('day-of-week-title').dataset.day);
+                if (isNaN(dayOfWeek)) return;
+                
+                if (!dayOfWeekSettings[dayOfWeek]) {
+                    dayOfWeekSettings[dayOfWeek] = {};
+                }
+                
+                // 儲存寬度
+                const width = document.getElementById('day-of-week-width').value;
+                dayOfWeekSettings[dayOfWeek].width = width + 'px';
+                
+                // 儲存顏色
+                const selectedColor = document.querySelector('#day-of-week-colors .selected');
+                if (selectedColor) {
+                    dayOfWeekSettings[dayOfWeek].backgroundColor = selectedColor.dataset.color;
+                }
+                
+                // 儲存標題
+                const title = document.getElementById('day-of-week-title-text').value.trim();
+                dayOfWeekSettings[dayOfWeek].title = title;
+                
+                generateMatchCalendar();
+                document.getElementById('day-of-week-modal').classList.add('hidden');
+            });
+            
+            // 初始渲染
+            renderAttendanceTable();
+        });
+        
+        // 更新自訂標題預設值
+        function updateDefaultTitle() {
+            const year = document.getElementById('req-year').value;
+            const month = parseInt(document.getElementById('req-month').value);
+            const monthNames = ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];
+            document.getElementById('req-title').placeholder = `${year}年 ${monthNames[month-1]}`;
+        }
+        
+        // 隱藏所有區段
+        function hideAllSections() {
+            document.getElementById('section-attendance').classList.add('hidden');
+            document.getElementById('section-requirements').classList.add('hidden');
+            document.getElementById('section-matching').classList.add('hidden');
+        }
+        
+        // 設置活動標籤
+        function setActiveTab(tabId) {
+            document.getElementById('tab-attendance').classList.remove('active');
+            document.getElementById('tab-requirements').classList.remove('active');
+            document.getElementById('tab-matching').classList.remove('active');
+            document.getElementById(tabId).classList.add('active');
+        }
+        
+        // 顯示批量設定彈窗
+        function showBatchModal(title, type) {
+            document.getElementById('batch-modal-title').textContent = title;
+            document.getElementById('batch-modal-title').dataset.type = type;
+            document.getElementById('batch-req-control').value = 0;
+            document.getElementById('batch-req-subcontrol').value = 0;
+            document.getElementById('batch-req-sanmin').value = 0;
+            document.getElementById('batch-req-arena').value = 0;
+            document.getElementById('batch-requirement-modal').classList.remove('hidden');
+        }
+        
+        // 顯示星期幾設定彈窗
+        function showDayOfWeekModal(dayOfWeek, dayName) {
+            document.getElementById('day-of-week-title').textContent = `設定${dayName}`;
+            document.getElementById('day-of-week-title').dataset.day = dayOfWeek;
+            
+            // 設定當前值
+            if (dayOfWeekSettings[dayOfWeek]) {
+                // 設定寬度
+                if (dayOfWeekSettings[dayOfWeek].width) {
+                    const width = parseInt(dayOfWeekSettings[dayOfWeek].width);
+                    document.getElementById('day-of-week-width').value = width || 150;
+                } else {
+                    document.getElementById('day-of-week-width').value = 150;
+                }
+                
+                // 設定顏色
+                const colorSwatches = document.querySelectorAll('#day-of-week-colors .color-swatch');
+                colorSwatches.forEach(swatch => {
+                    swatch.classList.remove('selected');
+                    if (dayOfWeekSettings[dayOfWeek].backgroundColor && 
+                        swatch.dataset.color === dayOfWeekSettings[dayOfWeek].backgroundColor) {
+                        swatch.classList.add('selected');
+                    }
+                });
+                
+                // 設定標題
+                document.getElementById('day-of-week-title-text').value = dayOfWeekSettings[dayOfWeek].title || '';
+            } else {
+                // 預設值
+                document.getElementById('day-of-week-width').value = 150;
+                document.querySelectorAll('#day-of-week-colors .color-swatch').forEach(swatch => {
+                    swatch.classList.remove('selected');
+                });
+                document.getElementById('day-of-week-title-text').value = '';
+            }
+            
+            // 添加顏色選擇事件
+            document.querySelectorAll('#day-of-week-colors .color-swatch').forEach(swatch => {
+                swatch.addEventListener('click', function() {
+                    document.querySelectorAll('#day-of-week-colors .color-swatch').forEach(s => {
+                        s.classList.remove('selected');
+                    });
+                    this.classList.add('selected');
+                });
+            });
+            
+            document.getElementById('day-of-week-modal').classList.remove('hidden');
+        }
+        
+        // 獲取需求日期列表
+        function getRequirementDates() {
+            const dates = [];
+            for (const dateStr in dailyRequirements) {
+                const req = dailyRequirements[dateStr];
+                // 檢查是否有任何需求
+                if (req['中控'] > 0 || req['副控'] > 0 || req['三民'] > 0 || req['Arena'] > 0) {
+                    dates.push(dateStr);
+                }
+            }
+            // 按日期排序
+            dates.sort();
+            return dates;
+        }
+        
+        // 渲染出席表格
+        function renderAttendanceTable() {
+            const table = document.getElementById('attendance-table');
+            const thead = table.querySelector('thead tr');
+            const tbody = table.querySelector('tbody');
+            
+            // 清空表頭，保留前三列（同工、身份標籤、操作）
+            while (thead.children.length > 3) {
+                thead.removeChild(thead.lastChild);
+            }
+            
+            // 獲取需求日期
+            const requirementDates = getRequirementDates();
+            
+            // 添加需求日期到表頭
+            requirementDates.forEach(dateStr => {
+                const th = document.createElement('th');
+                th.className = 'py-3 px-4 border-b border-r border-gray-200 text-center';
+                
+                // 格式化日期並添加星期幾
+                const date = new Date(dateStr);
+                const dayOfWeek = date.getDay();
+                const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
+                const formattedDate = `${formatDate(dateStr)} (${dayNames[dayOfWeek]})`;
+                
+                th.textContent = formattedDate;
+                thead.appendChild(th);
+            });
+            
+            // 清空表格內容
+            tbody.innerHTML = '';
+            
+            // 添加同工、身份標籤和出席狀態
+            employees.forEach(emp => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50';
+                
+                // 同工姓名
+                const tdName = document.createElement('td');
+                tdName.className = 'py-3 px-4 border-b border-r border-gray-200 font-medium employee-name';
+                tdName.textContent = emp.name;
+                tdName.addEventListener('click', function() {
+                    document.getElementById('edit-employee-name').value = emp.name;
+                    document.getElementById('edit-employee-original-name').value = emp.name;
+                    document.getElementById('edit-employee-modal').classList.remove('hidden');
+                });
+                tr.appendChild(tdName);
+                
+                // 身份標籤
+                const tdIdentities = document.createElement('td');
+                tdIdentities.className = 'py-3 px-4 border-b border-r border-gray-200';
+                
+                identityTypes.forEach(identity => {
+                    const isActive = emp.identities.includes(identity);
+                    const tagDiv = document.createElement('div');
+                    tagDiv.className = `identity-tag ${isActive ? 'active' : 'inactive'}`;
+                    tagDiv.style.backgroundColor = isActive ? identityColors[identity] : '#e5e7eb';
+                    tagDiv.style.color = isActive ? 'white' : '#6b7280';
+                    tagDiv.textContent = identity;
+                    tagDiv.dataset.employee = emp.name;
+                    tagDiv.dataset.identity = identity;
+                    
+                    tagDiv.addEventListener('click', function() {
+                        const employee = this.dataset.employee;
+                        const identity = this.dataset.identity;
+                        const empObj = employees.find(e => e.name === employee);
+                        
+                        if (empObj) {
+                            if (empObj.identities.includes(identity)) {
+                                // 允許移除任何身份標籤，即使是最後一個
+                                empObj.identities = empObj.identities.filter(id => id !== identity);
+                                this.classList.remove('active');
+                                this.classList.add('inactive');
+                                this.style.backgroundColor = '#e5e7eb';
+                                this.style.color = '#6b7280';
+                            } else {
+                                empObj.identities.push(identity);
+                                this.classList.remove('inactive');
+                                this.classList.add('active');
+                                this.style.backgroundColor = identityColors[identity];
+                                this.style.color = 'white';
+                            }
+                            generateMatchCalendar(); // 更新匹配結果
+                        }
+                    });
+                    
+                    tdIdentities.appendChild(tagDiv);
+                });
+                
+                tr.appendChild(tdIdentities);
+                
+                // 操作按鈕
+                const tdActions = document.createElement('td');
+                tdActions.className = 'py-3 px-4 border-b border-r border-gray-200 text-center';
+                
+                const editBtn = document.createElement('button');
+                editBtn.className = 'px-3 py-1 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-400 transition-colors';
+                editBtn.textContent = '編輯';
+                editBtn.addEventListener('click', function() {
+                    document.getElementById('edit-employee-name').value = emp.name;
+                    document.getElementById('edit-employee-original-name').value = emp.name;
+                    document.getElementById('edit-employee-modal').classList.remove('hidden');
+                });
+                
+                tdActions.appendChild(editBtn);
+                tr.appendChild(tdActions);
+                
+                // 出席狀態
+                requirementDates.forEach(dateStr => {
+                    const tdAttendance = document.createElement('td');
+                    tdAttendance.className = 'py-3 px-4 border-b border-r border-gray-200 attendance-cell text-center';
+                    
+                    const isAttending = attendance[emp.name] && attendance[emp.name][dateStr];
+                    
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.className = 'form-checkbox h-5 w-5 text-blue-600 rounded focus:ring-blue-500';
+                    checkbox.checked = isAttending;
+                    checkbox.addEventListener('change', function() {
+                        if (!attendance[emp.name]) attendance[emp.name] = {};
+                        attendance[emp.name][dateStr] = this.checked;
+                        
+                        // 如果取消出席，從正式指派中移除
+                        if (!this.checked && officialAssignments[dateStr]) {
+                            for (const identity in officialAssignments[dateStr]) {
+                                officialAssignments[dateStr][identity] = officialAssignments[dateStr][identity].filter(name => name !== emp.name);
+                            }
+                        }
+                        
+                        generateMatchCalendar(); // 更新匹配結果
+                    });
+                    
+                    tdAttendance.appendChild(checkbox);
+                    tr.appendChild(tdAttendance);
+                });
+                
+                tbody.appendChild(tr);
+            });
+        }
+        
+        // 生成需求月曆
+        function generateReqCalendar() {
+            const yearInput = document.getElementById('req-year');
+            const monthInput = document.getElementById('req-month');
+            const titleInput = document.getElementById('req-title');
+            
+            // 驗證輸入
+            let year = parseInt(yearInput.value);
+            let month = parseInt(monthInput.value);
+            let customTitle = titleInput.value.trim();
+            
+            if (isNaN(year) || year < 1900 || year > 2100) {
+                alert('請輸入有效的年份 (1900-2100)');
+                return;
+            }
+            
+            if (isNaN(month) || month < 1 || month > 12) {
+                alert('請輸入有效的月份 (1-12)');
+                return;
+            }
+            
+            // 更新日曆標題
+            const monthNames = ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];
+            let headerText = `${year}年 ${monthNames[month-1]}`;
+            if (customTitle) {
+                headerText += ` - ${customTitle}`;
+            }
+            document.getElementById('req-calendar-header').textContent = headerText;
+            document.getElementById('match-calendar-header').textContent = headerText; // 同步匹配結果標題
+            
+            // 獲取該月的第一天和最後一天
+            const firstDay = new Date(year, month - 1, 1);
+            const lastDay = new Date(year, month, 0);
+            
+            // 獲取該月的天數
+            const daysInMonth = lastDay.getDate();
+            
+            // 獲取該月第一天是星期幾 (0-6, 0 是星期日)
+            let firstDayOfWeek = firstDay.getDay();
+            // 調整為星期一為一週的第一天
+            firstDayOfWeek = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+            
+            // 生成日曆 HTML
+            let calendarHTML = `
+                <div class="grid grid-cols-7">
+                    <!-- 批量設定按鈕 -->
+                    <div class="batch-setting-cell p-2 text-center">
+                        <button class="batch-day-btn w-full px-2 py-1 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors text-xs" data-day="1">
+                            設定週一
+                        </button>
+                    </div>
+                    <div class="batch-setting-cell p-2 text-center">
+                        <button class="batch-day-btn w-full px-2 py-1 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors text-xs" data-day="2">
+                            設定週二
+                        </button>
+                    </div>
+                    <div class="batch-setting-cell p-2 text-center">
+                        <button class="batch-day-btn w-full px-2 py-1 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors text-xs" data-day="3">
+                            設定週三
+                        </button>
+                    </div>
+                    <div class="batch-setting-cell p-2 text-center">
+                        <button class="batch-day-btn w-full px-2 py-1 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors text-xs" data-day="4">
+                            設定週四
+                        </button>
+                    </div>
+                    <div class="batch-setting-cell p-2 text-center">
+                        <button class="batch-day-btn w-full px-2 py-1 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors text-xs" data-day="5">
+                            設定週五
+                        </button>
+                    </div>
+                    <div class="batch-setting-cell p-2 text-center">
+                        <button class="batch-day-btn w-full px-2 py-1 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors text-xs" data-day="6">
+                            設定週六
+                        </button>
+                    </div>
+                    <div class="batch-setting-cell p-2 text-center">
+                        <button class="batch-day-btn w-full px-2 py-1 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors text-xs" data-day="0">
+                            設定週日
+                        </button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-7 bg-gray-100 border-b border-gray-200">
+                    <div class="p-2 text-center font-medium text-gray-700">一</div>
+                    <div class="p-2 text-center font-medium text-gray-700">二</div>
+                    <div class="p-2 text-center font-medium text-gray-700">三</div>
+                    <div class="p-2 text-center font-medium text-gray-700">四</div>
+                    <div class="p-2 text-center font-medium text-gray-700">五</div>
+                    <div class="p-2 text-center font-medium text-gray-700 text-red-500">六</div>
+                    <div class="p-2 text-center font-medium text-gray-700 text-red-500">日</div>
+                </div>
+                <div class="grid grid-cols-7">
+            `;
+            
+            // 填充月曆前面的空白
+            for (let i = 0; i < firstDayOfWeek; i++) {
+                calendarHTML += `<div class="calendar-day empty-day p-2 border border-gray-100 bg-gray-50"></div>`;
+            }
+            
+            // 獲取今天的日期，用於標記當前日期
+            const today = new Date();
+            const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month - 1;
+            const currentDate = today.getDate();
+            
+            // 填充日期
+            for (let day = 1; day <= daysInMonth; day++) {
+                const isToday = isCurrentMonth && day === currentDate;
+                const isWeekend = (firstDayOfWeek + day - 1) % 7 >= 5; // 週六和週日
+                const dateStr = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+                const dayRequirements = dailyRequirements[dateStr] || {};
+                
+                let requirementsHTML = '';
+                let hasRequirements = false;
+                
+                identityTypes.forEach(identity => {
+                    const count = dayRequirements[identity] || 0;
+                    if (count > 0) {
+                        hasRequirements = true;
+                        requirementsHTML += `
+                            <div class="requirement-tag" style="background-color: ${identityColors[identity]}">
+                                ${identity}: ${count}
+                            </div>
+                        `;
+                    }
+                });
+                
+                calendarHTML += `
+                    <div class="calendar-day p-2 border border-gray-100 ${isToday ? 'today' : ''}" data-date="${dateStr}">
+                        <div class="flex justify-between items-start">
+                            <span class="text-sm md:text-base ${isWeekend ? 'text-red-500' : 'text-gray-800'}">${day}</span>
+                            <button class="add-req-btn text-xs bg-gray-200 hover:bg-gray-300 rounded-full w-5 h-5 flex items-center justify-center" data-date="${dateStr}">+</button>
+                        </div>
+                        <div class="mt-1 space-y-1">
+                            ${requirementsHTML}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // 填充月曆後面的空白
+            const totalCells = Math.ceil((firstDayOfWeek + daysInMonth) / 7) * 7;
+            const remainingCells = totalCells - (firstDayOfWeek + daysInMonth);
+            
+            for (let i = 0; i < remainingCells; i++) {
+                calendarHTML += `<div class="calendar-day empty-day p-2 border border-gray-100 bg-gray-50"></div>`;
+            }
+            
+            calendarHTML += `</div>`;
+            
+            // 更新日曆
+            document.getElementById('req-calendar').innerHTML = calendarHTML;
+            
+            // 添加新增需求按鈕事件
+            document.querySelectorAll('.add-req-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const date = this.dataset.date;
+                    const existingReqs = dailyRequirements[date] || {};
+                    
+                    document.getElementById('modal-date').textContent = formatDate(date);
+                    document.getElementById('modal-date').dataset.date = date;
+                    document.getElementById('req-control').value = existingReqs['中控'] || 0;
+                    document.getElementById('req-subcontrol').value = existingReqs['副控'] || 0;
+                    document.getElementById('req-sanmin').value = existingReqs['三民'] || 0;
+                    document.getElementById('req-arena').value = existingReqs['Arena'] || 0;
+                    
+                    document.getElementById('add-requirement-modal').classList.remove('hidden');
+                });
+            });
+            
+            // 添加批量設定按鈕事件
+            document.querySelectorAll('.batch-day-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const day = this.dataset.day;
+                    let title;
+                    
+                    switch (day) {
+                        case '0': title = '設定所有週日'; break;
+                        case '1': title = '設定所有週一'; break;
+                        case '2': title = '設定所有週二'; break;
+                        case '3': title = '設定所有週三'; break;
+                        case '4': title = '設定所有週四'; break;
+                        case '5': title = '設定所有週五'; break;
+                        case '6': title = '設定所有週六'; break;
+                    }
+                    
+                    showBatchModal(title, 'day-' + day);
+                });
+            });
+        }
+        
+        // 生成匹配結果月曆
+        function generateMatchCalendar() {
+            // 使用需求月曆的年月
+            const year = parseInt(document.getElementById('req-year').value);
+            const month = parseInt(document.getElementById('req-month').value);
+            const hideEmptyDays = document.getElementById('hide-empty-days').checked;
+            
+            if (isNaN(year) || year < 1900 || year > 2100 || isNaN(month) || month < 1 || month > 12) {
+                return; // 無效的年月
+            }
+            
+            // 獲取該月的第一天和最後一天
+            const firstDay = new Date(year, month - 1, 1);
+            const lastDay = new Date(year, month, 0);
+            
+            // 獲取該月的天數
+            const daysInMonth = lastDay.getDate();
+            
+            // 獲取該月第一天是星期幾 (0-6, 0 是星期日)
+            let firstDayOfWeek = firstDay.getDay();
+            // 調整為星期一為一週的第一天
+            firstDayOfWeek = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+            
+            // 生成日曆 HTML
+            let calendarHTML = `
+                <div class="grid grid-cols-7 bg-gray-100 border-b border-gray-200">
+                    <div class="p-2 text-center font-medium text-gray-700 day-header" data-day="1">一</div>
+                    <div class="p-2 text-center font-medium text-gray-700 day-header" data-day="2">二</div>
+                    <div class="p-2 text-center font-medium text-gray-700 day-header" data-day="3">三</div>
+                    <div class="p-2 text-center font-medium text-gray-700 day-header" data-day="4">四</div>
+                    <div class="p-2 text-center font-medium text-gray-700 day-header" data-day="5">五</div>
+                    <div class="p-2 text-center font-medium text-gray-700 text-red-500 day-header" data-day="6">六</div>
+                    <div class="p-2 text-center font-medium text-gray-700 text-red-500 day-header" data-day="0">日</div>
+                </div>
+                <div class="grid grid-cols-7">
+            `;
+            
+            // 填充月曆前面的空白
+            for (let i = 0; i < firstDayOfWeek; i++) {
+                calendarHTML += `<div class="calendar-day empty-day p-2 border border-gray-100 bg-gray-50"></div>`;
+            }
+            
+            // 獲取今天的日期，用於標記當前日期
+            const today = new Date();
+            const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month - 1;
+            const currentDate = today.getDate();
+            
+            // 填充日期
+            for (let day = 1; day <= daysInMonth; day++) {
+                const isToday = isCurrentMonth && day === currentDate;
+                const isWeekend = (firstDayOfWeek + day - 1) % 7 >= 5; // 週六和週日
+                const dateStr = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+                const dayRequirements = dailyRequirements[dateStr] || {};
+                const dayAssignments = officialAssignments[dateStr] || {};
+                const appearance = dayAppearance[dateStr] || {};
+                
+                // 計算星期幾 (0-6)
+                const date = new Date(year, month - 1, day);
+                const dayOfWeek = date.getDay();
+                const dayOfWeekSettings = this.dayOfWeekSettings[dayOfWeek] || {};
+                
+                let hasRequirements = false;
+                let assignmentHTML = '';
+                
+                // 檢查是否有需求
+                identityTypes.forEach(identity => {
+                    const count = dayRequirements[identity] || 0;
+                    if (count > 0) {
+                        hasRequirements = true;
+                        
+                        // 顯示正式指派的同工
+                        const assignedEmployees = dayAssignments[identity] || [];
+                        if (assignedEmployees.length > 0) {
+                            assignmentHTML += `
+                                <div class="mb-1">
+                                    <div class="text-xs font-medium" style="color: ${identityColors[identity]}">
+                                        ${identity}: ${assignedEmployees.join(', ')}
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    }
+                });
+                
+                // 如果設置了隱藏無需求日期且該日期沒有需求，則跳過
+                if (hideEmptyDays && !hasRequirements) {
+                    calendarHTML += `<div class="calendar-day empty-day p-2 border border-gray-100 bg-gray-50"></div>`;
+                    continue;
+                }
+                
+                // 設定背景顏色
+                let backgroundColor = appearance.backgroundColor || dayOfWeekSettings.backgroundColor || '#ffffff';
+                let headerColor = adjustColor(backgroundColor, -15); // 標題區域顏色稍深
+                
+                // 設定寬度
+                let width = dayOfWeekSettings.width || defaultColumnWidth;
+                
+                // 設定標題
+                let titleHTML = '';
+                if (appearance.title || dayOfWeekSettings.title) {
+                    titleHTML = `
+                        <div class="day-title">
+                            ${appearance.title || dayOfWeekSettings.title || ''}
+                        </div>
+                    `;
+                }
+                
+                calendarHTML += `
+                    <div class="calendar-day match-day p-2 border border-gray-100 ${isToday ? 'today' : ''}" 
+                         data-date="${dateStr}" 
+                         style="width: ${width}; background-color: ${backgroundColor};">
+                        <div class="flex justify-between items-start" style="background-color: ${headerColor}; margin: -0.5rem -0.5rem 0.5rem -0.5rem; padding: 0.5rem;">
+                            <span class="text-sm md:text-base ${isWeekend ? 'text-red-500' : 'text-gray-800'}">${day}</span>
+                        </div>
+                        ${titleHTML}
+                        <div class="mt-1 space-y-1 text-xs">
+                            ${assignmentHTML}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // 填充月曆後面的空白
+            const totalCells = Math.ceil((firstDayOfWeek + daysInMonth) / 7) * 7;
+            const remainingCells = totalCells - (firstDayOfWeek + daysInMonth);
+            
+            for (let i = 0; i < remainingCells; i++) {
+                calendarHTML += `<div class="calendar-day empty-day p-2 border border-gray-100 bg-gray-50"></div>`;
+            }
+            
+            calendarHTML += `</div>`;
+            
+            // 更新日曆
+            document.getElementById('match-calendar').innerHTML = calendarHTML;
+            
+            // 添加點擊事件以顯示詳細資訊
+            document.querySelectorAll('.match-day').forEach(day => {
+                day.addEventListener('click', function() {
+                    const dateStr = this.dataset.date;
+                    if (!dateStr) return;
+                    
+                    showMatchDetail(dateStr);
+                });
+            });
+            
+            // 添加星期幾標題點擊事件
+            document.querySelectorAll('.day-header').forEach(header => {
+                header.addEventListener('click', function() {
+                    const dayOfWeek = parseInt(this.dataset.day);
+                    const dayNames = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
+                    showDayOfWeekModal(dayOfWeek, dayNames[dayOfWeek]);
+                });
+            });
+        }
+        
+        // 顯示匹配詳細資訊
+        function showMatchDetail(dateStr) {
+            const date = formatDate(dateStr);
+            document.getElementById('match-detail-date').textContent = `${date} 的詳細資訊`;
+            document.getElementById('match-detail-date').dataset.date = dateStr;
+            
+            const dayRequirements = dailyRequirements[dateStr] || {};
+            const dayAssignments = officialAssignments[dateStr] || {};
+            const appearance = dayAppearance[dateStr] || {};
+            
+            // 生成同工指派內容
+            let employeesHTML = '';
+            identityTypes.forEach(identity => {
+                const requiredCount = dayRequirements[identity] || 0;
+                const assignedEmployees = dayAssignments[identity] || [];
+                
+                employeesHTML += `
+                    <div class="mb-4">
+                        <div class="text-sm font-medium text-gray-700">${identity} (需求: ${requiredCount})</div>
+                        <div class="mt-2">
+                            ${assignedEmployees.map(emp => `
+                                <div class="tag official-member">${emp}</div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            document.getElementById('match-detail-employees').innerHTML = employeesHTML;
+            
+            // 設定外觀選項
+            document.getElementById('day-custom-title').value = appearance.title || '';
+            
+            const colorSwatches = document.querySelectorAll('#color-swatches .color-swatch');
+            colorSwatches.forEach(swatch => {
+                swatch.classList.remove('selected');
+                if (appearance.backgroundColor && swatch.dataset.color === appearance.backgroundColor) {
+                    swatch.classList.add('selected');
+                }
+            });
+            
+            // 添加顏色選擇事件
+            colorSwatches.forEach(swatch => {
+                swatch.addEventListener('click', function() {
+                    colorSwatches.forEach(s => s.classList.remove('selected'));
+                    this.classList.add('selected');
+                });
+            });
+            
+            document.getElementById('match-detail-modal').classList.remove('hidden');
+        }
+        
+        // 格式化日期
+        function formatDate(dateStr) {
+            const [year, month, day] = dateStr.split('-');
+            return `${parseInt(year)}-${parseInt(month)}-${parseInt(day)}`;
+        }
+        
+        // 調整顏色亮度
+        function adjustColor(color, amount) {
+            let usePound = false;
+            if (color[0] === '#') {
+                color = color.slice(1);
+                usePound = true;
+            }
+            
+            const num = parseInt(color, 16);
+            let r = (num >> 16) + amount;
+            let g = ((num >> 8) & 0x00FF) + amount;
+            let b = (num & 0x0000FF) + amount;
+            
+            r = Math.max(Math.min(255, r), 0);
+            g = Math.max(Math.min(255, g), 0);
+            b = Math.max(Math.min(255, b), 0);
+            
+            const newColor = (r << 16) | (g << 8) | b;
+            return (usePound ? '#' : '') + newColor.toString(16).padStart(6, '0');
+        }
+    </script>
+</body>
+</html>
